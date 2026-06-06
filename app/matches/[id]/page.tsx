@@ -1,13 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Image from "next/image";
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
 import type { MatchDetail } from "@/lib/types";
-
-const HERO_IMAGE =
-  "https://images.unsplash.com/photo-1762013315117-1c8005ad2b41?auto=format&fit=crop&w=1920&q=80";
-
-const DEFAULT_MATCH_ID = 1;
 
 function StatBar({ label, value, pct }: { label: string; value: string; pct: number }) {
   return (
@@ -30,15 +25,18 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-white/10 rounded-lg ${className ?? ""}`} />;
 }
 
-export default function Home() {
+export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
 
   useEffect(() => {
-    fetch(`/api/matches/${DEFAULT_MATCH_ID}`)
+    fetch(`/api/matches/${id}`)
       .then((r) => r.json())
       .then((data: MatchDetail) => {
         setMatch(data);
@@ -46,16 +44,21 @@ export default function Home() {
       })
       .catch(() => setError("Could not load match data."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [id]);
 
   async function runAnalysis() {
     setAnalyzing(true);
     setError(null);
     try {
-      const res = await fetch(`/api/analysis/${DEFAULT_MATCH_ID}`, { method: "POST" });
+      const res = await fetch(`/api/analysis/${id}`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Analysis failed");
+      if (!res.ok) {
+        if (res.status === 401) throw new Error("Please sign in to generate analysis");
+        if (res.status === 403) throw new Error(data.error);
+        throw new Error(data.error ?? "Analysis failed");
+      }
       setInsights(data.insights);
+      if (data.remaining !== undefined) setRemaining(data.remaining);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
@@ -65,6 +68,7 @@ export default function Home() {
 
   const hs = match?.home_stats;
   const as_ = match?.away_stats;
+  const statusLabel: Record<string, string> = { finished: "Full Time", live: "Live", scheduled: "Upcoming" };
 
   const stats = hs
     ? [
@@ -76,35 +80,18 @@ export default function Home() {
       ]
     : [];
 
-  const statusLabel: Record<string, string> = { finished: "Full Time", live: "Live", scheduled: "Upcoming" };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-
-      <header className="relative h-72 md:h-84 overflow-hidden">
-        <Image src={HERO_IMAGE} alt="Stadium" fill className="object-cover object-center" priority />
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/30 via-slate-950/60 to-slate-950" />
-        <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6">
-          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/25 rounded-full px-4 py-1.5 mb-5 text-emerald-400 text-xs font-semibold tracking-widest uppercase">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Live Analysis
-          </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight drop-shadow-lg">
-            ⚽ Football AI Match Analyst
-          </h1>
-          <p className="mt-3 text-slate-400 text-base md:text-lg max-w-lg">
-            Automated Tactical Intelligence &amp; Performance Analysis
-          </p>
-        </div>
-      </header>
-
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
 
-        {match && (
-          <p className="text-center text-slate-500 text-xs tracking-widest uppercase">
-            {match.league} · {match.venue}
-          </p>
-        )}
+        <div className="flex items-center gap-3">
+          <Link href="/matches" className="text-slate-500 hover:text-white text-sm transition-colors">
+            ← Matches
+          </Link>
+          {match && (
+            <span className="text-slate-700 text-xs">/ {match.league}</span>
+          )}
+        </div>
 
         {/* Match Card */}
         <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-8">
@@ -158,7 +145,7 @@ export default function Home() {
               <div className="space-y-3">
                 {(match?.players ?? []).map((p, i) => (
                   <div key={p.id} className="flex items-center gap-4 bg-white/5 hover:bg-white/10 transition-colors rounded-xl px-4 py-3 group">
-                    <span className="text-slate-600 text-xs font-mono w-4 text-center group-hover:text-slate-400 transition-colors">{i + 1}</span>
+                    <span className="text-slate-600 text-xs font-mono w-4 text-center">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">{p.name}</p>
                       <p className="text-[10px] text-slate-500 uppercase tracking-widest">{p.position} · {p.team_name}</p>
@@ -176,7 +163,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* xG Comparison */}
+        {/* Stats Comparison */}
         {!loading && hs && as_ && (
           <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
             <h3 className="text-emerald-400 font-semibold text-base mb-5">⚡ Key Stats Comparison</h3>
@@ -209,7 +196,12 @@ export default function Home() {
         {/* AI Analysis */}
         <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
           <h3 className="text-emerald-400 font-semibold text-base mb-1">🤖 AI Tactical Analysis</h3>
-          <p className="text-slate-500 text-xs mb-5">Powered by Claude · Real match data</p>
+          <p className="text-slate-500 text-xs mb-5">
+            Powered by Claude · Real match data
+            {remaining !== null && (
+              <span className="ml-2 text-slate-600">· {remaining} free report{remaining !== 1 ? "s" : ""} remaining</span>
+            )}
+          </p>
 
           <div className="space-y-3 min-h-28">
             {analyzing ? (
@@ -221,7 +213,12 @@ export default function Home() {
                 <span className="animate-pulse text-sm">Claude is analyzing match events…</span>
               </div>
             ) : error ? (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
+                {error}
+                {error.includes("log in") && (
+                  <Link href="/login" className="ml-2 underline hover:text-red-300">Sign in →</Link>
+                )}
+              </div>
             ) : insights.length > 0 ? (
               insights.map((text, i) => (
                 <div key={i} className="flex gap-3 bg-white/5 rounded-xl px-4 py-3 border-l-2 border-emerald-500/60">
