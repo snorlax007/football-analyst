@@ -175,6 +175,22 @@ export default async function DashboardPage() {
           </div>
         )}
 
+        {/* Quick links: Phase 7–8 tools */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { href: "/fantasy",          label: "Fantasy Picks",   icon: "⚽", color: "text-purple-400" },
+            { href: "/scouting",         label: "Player Scouting", icon: "🔍", color: "text-blue-400" },
+            { href: "/pre-match",        label: "Pre-Match Brief", icon: "📋", color: "text-amber-400" },
+            { href: "/settings/api-keys",label: "API Keys",        icon: "🔑", color: "text-emerald-400" },
+          ].map(({ href, label, icon, color }) => (
+            <Link key={href} href={href}
+              className="rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 p-4 text-center transition-all group">
+              <span className={`text-xl ${color}`}>{icon}</span>
+              <p className="text-xs font-medium text-slate-400 group-hover:text-white transition mt-1.5">{label}</p>
+            </Link>
+          ))}
+        </div>
+
         {/* Recent Analyses */}
         <div className="rounded-2xl bg-white/5 border border-white/10 p-6">
           <div className="flex items-center justify-between mb-4">

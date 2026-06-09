@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import sql from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getPlanLimits, type PlanTier } from "@/lib/stripe";
+import { deliverWebhook } from "@/lib/webhooks";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -138,6 +139,17 @@ Reply with ONLY valid JSON — no markdown, no commentary:
     INSERT INTO ai_analyses (match_id, insights, model)
     VALUES (${id}, ${JSON.stringify(insights)}, ${"claude-sonnet-4-6"})
   `;
+
+  // Fire webhook for org members
+  if (orgId) {
+    deliverWebhook(orgId, "match.analysis.completed", {
+      match_id: id,
+      home_team: match.home_name,
+      away_team: match.away_name,
+      score: { home: match.home_score, away: match.away_score },
+      insights,
+    }).catch(() => {});
+  }
 
   // Increment quota
   if (orgId) {

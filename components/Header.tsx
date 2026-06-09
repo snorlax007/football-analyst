@@ -32,6 +32,9 @@ export default async function Header() {
               <Link href="/pre-match" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden lg:inline-flex">
                 Pre-Match
               </Link>
+              <Link href="/fantasy" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden lg:inline-flex">
+                Fantasy
+              </Link>
               {primaryOrg && (
                 <Link
                   href={`/org/${primaryOrg.slug}`}
@@ -41,6 +44,9 @@ export default async function Header() {
                   <span className="max-w-[80px] truncate">{primaryOrg.name}</span>
                 </Link>
               )}
+              <Link href="/settings/api-keys" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden xl:inline-flex" title="API Keys">
+                API
+              </Link>
               <Link href="/dashboard" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 Dashboard
               </Link>

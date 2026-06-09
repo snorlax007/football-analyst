@@ -21,8 +21,10 @@ const sql = new Proxy(_sql, {
         const e = err as { cause?: { code?: string }; sourceError?: { cause?: { code?: string } } };
         const code = e?.cause?.code ?? e?.sourceError?.cause?.code;
         if (code === "ETIMEDOUT" || code === "ECONNREFUSED") {
-          return new Promise((resolve) => setTimeout(resolve, 500)).then(() =>
-            Reflect.apply(target, thisArg, args)
+          // Neon cold-start can take 1–3s; retry with 1.5s delay then once more after 2s
+          const retry = () => Reflect.apply(target, thisArg, args) as Promise<unknown>;
+          return new Promise<void>((r) => setTimeout(r, 1500)).then(retry).catch(() =>
+            new Promise<void>((r) => setTimeout(r, 2000)).then(retry)
           );
         }
         throw err;

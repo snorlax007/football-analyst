@@ -39,6 +39,36 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 8 — API & Integrations
+
+> [!success] Phase 8 Complete ✅
+> All 14 tasks done across 4 sections.
+
+**What was built:**
+- `lib/apiAuth.ts` — API key auth helper; key format `faa_` + 32 hex; SHA256 hash in DB; rate limiting via `api_usage` table
+- `lib/webhooks.ts` — HMAC-SHA256 signed webhook delivery; fire-and-forget with 10s timeout
+- `app/api/keys/` — GET list + POST create (Pro+ only, max 5) + DELETE revoke
+- `app/api/v1/match/[id]/analysis` + `app/api/v1/player/[id]/stats` — public REST API with Bearer auth
+- `app/settings/api-keys/page.tsx` — copy-once key reveal, usage bar, revoke button
+- `app/docs/page.tsx` — full API reference (auth, rate limits, endpoints, widget embed, webhooks, errors)
+- `app/api/widget/[matchId]` — public widget data endpoint (no auth)
+- `app/widget/match/[id]/page.tsx` — iframe-embeddable match card; `?whitelabel=1` removes branding
+- `app/api/fantasy/picks` — FPL scoring (goals×6 + assists×3 + rating/appearance bonuses), best XI picker, Claude Haiku reasoning
+- `app/fantasy/page.tsx` — Best XI + All Players tabs with FPL score display
+- `app/api/webhooks/config/` — CRUD for org webhook endpoints (Team+ gated, HTTPS only, max 3)
+- `app/settings/webhooks/page.tsx` — webhook config UI with event checkboxes and secret reveal
+- Webhook fired automatically after match analysis completes for org members
+
+**Key decisions:**
+- `organizations.id` is UUID (TEXT), not INT — all FK references use TEXT
+- `ensureTables()` calls are memoized with module-level flags to avoid per-request DDL
+- Neon cold-start retry improved: 1.5s + 2s double-retry instead of single 500ms retry
+- `api_keys` and `api_usage` tables auto-created with `IF NOT EXISTS` in route handlers (no migrations)
+
+**Key unlock:** Distribution — external developers can integrate Football AI into their apps.
+
+---
+
 ## [2026-06-09] complete | Phase 7 — AI Depth
 
 > [!success] Phase 7 Complete ✅
