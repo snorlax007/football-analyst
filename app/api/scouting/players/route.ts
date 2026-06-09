@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import sql from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit, LIMITS } from "@/lib/rateLimit";
+import { sanitizeSearch } from "@/lib/sanitize";
 
 export const dynamic = "force-dynamic";
 
@@ -9,9 +11,14 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
+  const { allowed } = checkRateLimit(`search:${session.userId}`, LIMITS.search);
+  if (!allowed) {
+    return NextResponse.json({ error: "Too many search requests. Please slow down." }, { status: 429 });
+  }
+
   const { searchParams } = new URL(req.url);
   const position = searchParams.get("position") ?? "";
-  const nlQuery = searchParams.get("q") ?? "";
+  const nlQuery = sanitizeSearch(searchParams.get("q") ?? "");
   const minRating = parseFloat(searchParams.get("minRating") ?? "0");
   const minGoals = parseInt(searchParams.get("minGoals") ?? "0");
   const minAssists = parseInt(searchParams.get("minAssists") ?? "0");

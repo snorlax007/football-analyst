@@ -2,8 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { compare } from "bcryptjs";
 import sql from "@/lib/db";
 import { signToken, COOKIE } from "@/lib/auth";
+import { checkRateLimit, LIMITS } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed } = checkRateLimit(`login:${ip}`, LIMITS.auth);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Please wait 15 minutes." },
+      { status: 429, headers: { "Retry-After": "900" } }
+    );
+  }
+
   const { email, password } = await req.json();
 
   if (!email || !password) {

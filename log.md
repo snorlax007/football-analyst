@@ -39,6 +39,44 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 10 — Scale & Observability
+
+> [!success] Phase 10 Complete ✅ — ALL 10 PHASES DONE
+> All 13 tasks done across 4 sections.
+
+**What was built:**
+
+*10.1 — Performance:*
+- Analysis caching: `GET /api/analysis/[matchId]` checks for <24h cached result BEFORE calling Claude or consuming quota
+- `POST /api/admin/indexes` creates 10 DB indexes with `CREATE INDEX IF NOT EXISTS`
+- Neon serverless driver uses HTTP per query — no pooling config needed
+
+*10.2 — Background Job Queue:*
+- `lib/inngest.ts` — Inngest client + `generateAnalysis` function (retries: 2, sends push on completion)
+- `app/api/inngest/route.ts` — dynamic serve: activates only when `INNGEST_SIGNING_KEY`/`INNGEST_DEV=1` set
+- Analysis route: dispatches to Inngest if configured → returns `{status:"queued"}` immediately; falls back to synchronous execution otherwise
+- MatchClient: amber pulsing "queued" state, polls every 3s until result appears
+
+*10.3 — Monitoring:*
+- Sentry: `sentry.client.config.ts`, `sentry.server.config.ts`, `instrumentation.ts` (no-op when DSN unset)
+- PostHog: `components/PostHogProvider.tsx` wraps layout (no-op when key unset; dev opt-out)
+- `GET /api/health` — uptime check returns DB status + latency; returns 503 if DB unreachable
+
+*10.4 — Security Hardening:*
+- `lib/rateLimit.ts` — sliding-window in-memory rate limiter; auth=10/15min, analysis=5/min, search=30/min
+- `lib/sanitize.ts` — stripHtml, sanitizeSearch, sanitizeName, sanitizeUrl, safeInt
+- Applied to: login, register, analysis, scouting search, org create
+- Stripe webhook signature verification: already implemented in Phase 4 ✅
+
+**Key decisions:**
+- In-memory rate limiter chosen over Upstash Redis (no external service dep); swap-ready interface
+- Inngest serves as optional accelerator — app works without it (synchronous fallback)
+- Sentry/PostHog/Inngest are all no-ops when env vars unset — zero config required to run locally
+
+**Key unlock:** Ready for growth — monitoring, caching, background jobs, and hardened security in place.
+
+---
+
 ## [2026-06-09] complete | Phase 9 — Mobile & PWA
 
 > [!success] Phase 9 Complete ✅

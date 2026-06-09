@@ -35,6 +35,7 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
   const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [queued, setQueued] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -74,6 +75,7 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
 
   async function runAnalysis() {
     setAnalyzing(true);
+    setQueued(false);
     setError(null);
     try {
       const res = await fetch(`/api/analysis/${id}`, { method: "POST" });
@@ -82,6 +84,24 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
         if (res.status === 401) throw new Error("Please sign in to generate analysis");
         if (res.status === 403) throw new Error(data.error);
         throw new Error(data.error ?? "Analysis failed");
+      }
+      // Background job queued — poll until analysis appears
+      if (data.status === "queued") {
+        setQueued(true);
+        if (data.remaining !== undefined) setRemaining(data.remaining);
+        const poll = setInterval(async () => {
+          try {
+            const r = await fetch(`/api/matches/${id}`);
+            const d = await r.json();
+            if (d.analysis?.insights?.length) {
+              setInsights(d.analysis.insights);
+              setQueued(false);
+              clearInterval(poll);
+            }
+          } catch { /* keep polling */ }
+        }, 3000);
+        setTimeout(() => clearInterval(poll), 120_000); // stop after 2 min
+        return;
       }
       setInsights(data.insights);
       if (data.remaining !== undefined) setRemaining(data.remaining);
@@ -253,6 +273,14 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
                 </span>
                 <span className="animate-pulse text-sm">Claude is analyzing match events…</span>
               </div>
+            ) : queued ? (
+              <div className="flex items-center gap-3 text-slate-400 py-4">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
+                </span>
+                <span className="animate-pulse text-sm">Analysis queued — generating in background… You&apos;ll get a push notification when it&apos;s ready.</span>
+              </div>
             ) : error ? (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
                 {error}
@@ -275,10 +303,10 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
           <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <button
               onClick={runAnalysis}
-              disabled={analyzing || loading}
+              disabled={analyzing || queued || loading}
               className="flex-1 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-bold text-sm tracking-wide transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              {analyzing ? "Analyzing…" : "Generate New AI Analysis"}
+              {analyzing ? "Analyzing…" : queued ? "Queued…" : "Generate New AI Analysis"}
             </button>
             <button
               onClick={downloadPdf}

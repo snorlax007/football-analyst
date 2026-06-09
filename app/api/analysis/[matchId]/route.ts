@@ -4,6 +4,8 @@ import sql from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getPlanLimits, type PlanTier } from "@/lib/stripe";
 import { deliverWebhook } from "@/lib/webhooks";
+import { inngest } from "@/lib/inngest";
+import { checkRateLimit, LIMITS } from "@/lib/rateLimit";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -14,6 +16,11 @@ export async function POST(
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ error: "Please log in to generate analysis" }, { status: 401 });
+  }
+
+  const { allowed: rateOk } = checkRateLimit(`analysis:${session.userId}`, LIMITS.aiGen);
+  if (!rateOk) {
+    return NextResponse.json({ error: "Too many analysis requests. Please wait a minute." }, { status: 429 });
   }
 
   const month = new Date().toISOString().slice(0, 7);
@@ -63,13 +70,30 @@ export async function POST(
     );
   }
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
-  }
-
   const { matchId } = await ctx.params;
   const id = parseInt(matchId);
   if (isNaN(id)) return NextResponse.json({ error: "Invalid match id" }, { status: 400 });
+
+  // Return cached analysis if generated within the last 24 hours (no quota consumed)
+  const cached = await sql`
+    SELECT insights, model, created_at FROM ai_analyses
+    WHERE match_id = ${id}
+      AND created_at > NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  if (cached.length > 0) {
+    return NextResponse.json({
+      insights: cached[0].insights as string[],
+      model: cached[0].model,
+      remaining: quota - used,
+      quotaType,
+      cached: true,
+    });
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+  }
 
   const matches = await sql`
     SELECT m.*, ht.name AS home_name, at.name AS away_name
@@ -100,6 +124,28 @@ export async function POST(
 
   const hs = stats.find((s) => s.team_id === match.home_team_id);
   const as_ = stats.find((s) => s.team_id === match.away_team_id);
+
+  // Increment quota eagerly (before Claude call to prevent races)
+  if (orgId) {
+    await sql`
+      INSERT INTO org_usage (org_id, month, reports_generated) VALUES (${orgId}, ${month}, 1)
+      ON CONFLICT (org_id, month) DO UPDATE SET reports_generated = org_usage.reports_generated + 1
+    `;
+  } else {
+    await sql`
+      INSERT INTO user_usage (user_id, month, reports_generated) VALUES (${session.userId}, ${month}, 1)
+      ON CONFLICT (user_id, month) DO UPDATE SET reports_generated = user_usage.reports_generated + 1
+    `;
+  }
+
+  // If Inngest is configured, dispatch to background and return immediately
+  if (process.env.INNGEST_EVENT_KEY && process.env.INNGEST_EVENT_KEY !== "local") {
+    await inngest.send({
+      name: "analysis/requested",
+      data: { matchId: id, userId: session.userId, orgId: orgId as string | null, effectiveTier, quotaType, quota },
+    });
+    return NextResponse.json({ status: "queued", remaining: quota - used - 1, quotaType });
+  }
 
   const prompt = `You are a professional football analyst. Analyze this match and provide 4 sharp, data-driven tactical insights. Reference actual numbers. Be specific, not generic.
 
@@ -149,23 +195,6 @@ Reply with ONLY valid JSON — no markdown, no commentary:
       score: { home: match.home_score, away: match.away_score },
       insights,
     }).catch(() => {});
-  }
-
-  // Increment quota
-  if (orgId) {
-    await sql`
-      INSERT INTO org_usage (org_id, month, reports_generated)
-      VALUES (${orgId}, ${month}, 1)
-      ON CONFLICT (org_id, month)
-      DO UPDATE SET reports_generated = org_usage.reports_generated + 1
-    `;
-  } else {
-    await sql`
-      INSERT INTO user_usage (user_id, month, reports_generated)
-      VALUES (${session.userId}, ${month}, 1)
-      ON CONFLICT (user_id, month)
-      DO UPDATE SET reports_generated = user_usage.reports_generated + 1
-    `;
   }
 
   return NextResponse.json({

@@ -2,9 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import sql from "@/lib/db";
 import { signToken, COOKIE } from "@/lib/auth";
+import { checkRateLimit, LIMITS } from "@/lib/rateLimit";
+import { stripHtml } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
-  const { name, email, password } = await req.json();
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { allowed } = checkRateLimit(`register:${ip}`, LIMITS.auth);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Please wait 15 minutes." },
+      { status: 429, headers: { "Retry-After": "900" } }
+    );
+  }
+
+  const body = await req.json();
+  const name = stripHtml(String(body.name ?? "")).slice(0, 100);
+  const email = String(body.email ?? "").toLowerCase().trim().slice(0, 254);
+  const password = String(body.password ?? "");
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Name, email and password are required" }, { status: 400 });

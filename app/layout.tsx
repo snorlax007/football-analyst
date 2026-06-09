@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import InstallPrompt from "@/components/InstallPrompt";
+import PostHogProvider from "@/components/PostHogProvider";
 
 export const metadata: Metadata = {
   title: "Football AI Match Analyst",
@@ -31,8 +32,10 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
       <body className="antialiased">
-        <Header />
-        {children}
+        <PostHogProvider>
+          <Header />
+          {children}
+        </PostHogProvider>
         <ServiceWorkerRegistrar />
         <InstallPrompt />
       </body>

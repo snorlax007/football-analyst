@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import sql from "@/lib/db";
 import { toSlug, getUniqueSlug } from "@/lib/orgs";
+import { sanitizeName } from "@/lib/sanitize";
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
 
-  const { name } = await req.json();
-  if (!name?.trim()) return NextResponse.json({ error: "Organization name is required" }, { status: 400 });
+  const body = await req.json();
+  const name = sanitizeName(String(body.name ?? ""));
+  if (!name) return NextResponse.json({ error: "Organization name is required" }, { status: 400 });
 
   const base = toSlug(name.trim());
   if (!base) return NextResponse.json({ error: "Invalid organization name" }, { status: 400 });
