@@ -16,7 +16,10 @@ const sql = new Proxy(_sql, {
     const result = Reflect.apply(target, thisArg, args);
     if (result && typeof result.then === "function") {
       return result.catch((err: unknown) => {
-        const code = (err as { cause?: { code?: string } })?.cause?.code;
+        // Neon wraps fetch errors as NeonDbError { sourceError: TypeError { cause: AggregateError { code } } }
+        // Also handle plain { cause: { code } } shape from older versions
+        const e = err as { cause?: { code?: string }; sourceError?: { cause?: { code?: string } } };
+        const code = e?.cause?.code ?? e?.sourceError?.cause?.code;
         if (code === "ETIMEDOUT" || code === "ECONNREFUSED") {
           return new Promise((resolve) => setTimeout(resolve, 500)).then(() =>
             Reflect.apply(target, thisArg, args)
