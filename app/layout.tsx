@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   title: "Football AI Match Analyst",
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body className="antialiased">
         <Header />
         {children}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

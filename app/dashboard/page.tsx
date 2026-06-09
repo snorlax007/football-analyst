@@ -5,6 +5,7 @@ import sql from "@/lib/db";
 import { getUserOrgs } from "@/lib/orgs";
 import UsageBar from "@/components/UsageBar";
 import BillingPortalButton from "@/components/BillingPortalButton";
+import PushSubscribeButton from "@/components/PushSubscribeButton";
 import { PLANS, type PlanTier } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
@@ -54,9 +55,12 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-6">
 
-        <div>
-          <h1 className="text-2xl font-black">Welcome back, {session.name.split(" ")[0]} 👋</h1>
-          <p className="text-slate-500 text-sm mt-1">{session.email}</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black">Welcome back, {session.name.split(" ")[0]} 👋</h1>
+            <p className="text-slate-500 text-sm mt-1">{session.email}</p>
+          </div>
+          <PushSubscribeButton />
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

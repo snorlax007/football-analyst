@@ -114,6 +114,18 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
           {match && (
             <span className="text-slate-700 text-xs">/ {match.league}</span>
           )}
+          {match?.status === "live" && (
+            <Link
+              href={`/live/${id}`}
+              className="ml-auto flex items-center gap-1.5 text-xs bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 px-3 py-1 rounded-full font-semibold transition"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+              </span>
+              Live tracker
+            </Link>
+          )}
         </div>
 
         {/* Match Card */}

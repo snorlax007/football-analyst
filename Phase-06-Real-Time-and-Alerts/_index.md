@@ -1,19 +1,19 @@
 ---
 phase: 6
 title: "Real-Time & Alerts"
-status: todo
+status: done
 week: "7–8"
 goal: "Make the app essential on matchday"
 key_unlock: "Daily usage"
 tasks_total: 11
-tasks_done: 0
-color: caution
+tasks_done: 11
+color: success
 tags:
   - phase-06
   - real-time-and-alerts
   - phase-index
 created: 2026-06-06
-updated: 2026-06-06
+updated: 2026-06-09
 ---
 
 # 🟠 Phase 6 — Real-Time & Alerts
@@ -23,7 +23,7 @@ updated: 2026-06-06
 
 ## Progress
 
-> [!info] ⬜ Not Started — 0 / 11 tasks complete
+> [!success] ✅ Complete — 11 / 11 tasks complete
 
 ```dataview
 TABLE tasks_done as "Done", tasks_total as "Total", status as "Status"

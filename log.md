@@ -39,6 +39,34 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 6 — Real-Time & Alerts
+
+> [!success] Phase 6 Complete ✅
+> All 11 tasks done across 3 sections.
+
+**What was built:**
+- DB migration: `live_events(match_id, minute, event_type, team_id, player_name, detail, ai_comment)`, `push_subscriptions(user_id, endpoint, p256dh, auth)`
+- `app/api/live/[matchId]/route.ts` — SSE endpoint; `ReadableStream` with `Content-Type: text/event-stream`; polls DB every 10s; emits `connected`, `state`, `event`, `heartbeat`, `finished`, `error` message types
+- Claude Haiku generates AI commentary inline for goal/var/penalty events
+- `app/live/[matchId]/page.tsx` — live match UI with `EventSource`; animated score, reverse-chronological event timeline with icons and AI comments
+- `lib/push.ts` — `sendPushToUser()` + `sendPushToTeamFollowers()` via `web-push` VAPID; removes stale subscriptions on HTTP 410
+- `lib/email.ts` — `sendPostMatchEmail()` + `sendWeeklyDigest()` via Resend; no-ops if `RESEND_API_KEY` unset
+- `app/api/push/subscribe/route.ts` — GET (VAPID key), POST (subscribe), DELETE (unsubscribe)
+- `public/sw.js` — service worker handles `push` (show notification) and `notificationclick` (open URL)
+- `components/ServiceWorkerRegistrar.tsx` — registers `/sw.js` on mount; added to `app/layout.tsx`
+- `components/PushSubscribeButton.tsx` — subscribe/unsubscribe toggle; browser support check; added to dashboard header
+- `app/api/cron/nightly-results/route.ts` — sends push + email to team followers; runs daily 06:00 UTC
+- `app/api/cron/weekly-digest/route.ts` — weekly email digest; runs Mondays 08:00 UTC
+- `vercel.json` — cron schedule for nightly-results, weekly-digest, sync-teams
+
+**Key decisions:**
+- `export const runtime = "nodejs"` + `export const dynamic = "force-dynamic"` required for SSE in Next.js 16 App Router
+- `applicationServerKey` cast to `ArrayBuffer` to satisfy TypeScript `PushSubscribeOptions` type in Node 20 lib
+- Cron routes gated with `x-cron-secret` header; Resend + web-push are no-ops if env vars not set (safe in dev)
+- TypeScript clean; production build: 43 routes
+
+---
+
 ## [2026-06-09] complete | Phase 5 — Export & Sharing
 
 > [!success] Phase 5 Complete ✅
