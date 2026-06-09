@@ -3,8 +3,13 @@ import sql from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-// Returns all live (and recently started) matches for client-side polling on the matches list
+// Returns all live matches for client-side polling on the matches list
 export async function GET() {
+  // Add current_minute column if it doesn't exist yet
+  try {
+    await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_minute INT DEFAULT NULL`;
+  } catch { /* column exists or table not ready — ignore */ }
+
   const matches = await sql`
     SELECT
       m.id, m.home_score, m.away_score, m.status, m.current_minute,
@@ -23,7 +28,7 @@ export async function GET() {
       homeScore: m.home_score,
       awayScore: m.away_score,
       status: m.status,
-      currentMinute: m.current_minute ?? null,
+      currentMinute: (m.current_minute ?? null) as number | null,
       homeName: m.home_name,
       homeShort: m.home_short,
       awayName: m.away_name,

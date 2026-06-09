@@ -87,6 +87,11 @@ export async function GET(
         } catch { closed = true; }
       }
 
+      // Ensure current_minute column exists (added in this feature release)
+      try {
+        await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_minute INT DEFAULT NULL`;
+      } catch { /* ignore */ }
+
       async function poll() {
         if (closed) return;
 
