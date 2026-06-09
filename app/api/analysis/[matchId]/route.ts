@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import sql from "@/lib/db";
-import { getSession, FREE_LIMIT, ORG_QUOTA } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
+import { getPlanLimits, type PlanTier } from "@/lib/stripe";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -16,14 +17,26 @@ export async function POST(
 
   const month = new Date().toISOString().slice(0, 7);
 
-  // Check if user is in an org — org members share a higher quota
+  // Determine quota from user's subscription tier or org tier
+  const userRows = await sql`
+    SELECT subscription_tier FROM users WHERE id = ${session.userId}
+  `;
+  const userTier = (userRows[0]?.subscription_tier as PlanTier) ?? "free";
+
   const orgRows = await sql`
-    SELECT om.org_id FROM org_members om WHERE om.user_id = ${session.userId} LIMIT 1
+    SELECT om.org_id, o.subscription_tier AS org_tier
+    FROM org_members om
+    JOIN organizations o ON o.id = om.org_id
+    WHERE om.user_id = ${session.userId} LIMIT 1
   `;
   const orgId = orgRows.length > 0 ? orgRows[0].org_id : null;
+  const orgTier = orgRows.length > 0 ? (orgRows[0].org_tier as PlanTier) : null;
+
+  // Org members inherit org tier; otherwise use personal tier
+  const effectiveTier = orgId && orgTier ? orgTier : userTier;
+  const quota = getPlanLimits(effectiveTier).analysesPerMonth;
 
   let used = 0;
-  let quota = FREE_LIMIT;
   let quotaType: "org" | "personal" = "personal";
 
   if (orgId) {
@@ -31,7 +44,6 @@ export async function POST(
       SELECT reports_generated FROM org_usage WHERE org_id = ${orgId} AND month = ${month}
     `;
     used = usageRows.length > 0 ? Number(usageRows[0].reports_generated) : 0;
-    quota = ORG_QUOTA;
     quotaType = "org";
   } else {
     const usageRows = await sql`
@@ -42,7 +54,10 @@ export async function POST(
 
   if (used >= quota) {
     return NextResponse.json(
-      { error: `Monthly limit reached (${quota}/${quota}). ${quotaType === "org" ? "Contact your org owner to upgrade." : "Upgrade to Pro for unlimited analyses."}` },
+      {
+        error: `Monthly limit reached (${quota}/${quota}). ${quotaType === "org" ? "Your org's quota is exhausted — upgrade the org plan." : "Upgrade to Pro for more analyses."}`,
+        upgradeUrl: "/pricing",
+      },
       { status: 403 }
     );
   }

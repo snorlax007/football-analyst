@@ -1,12 +1,12 @@
 ---
 phase: 4
 title: "Payments"
-status: todo
+status: done
 week: "5"
 goal: "Generate revenue"
 key_unlock: "Revenue starts"
 tasks_total: 11
-tasks_done: 0
+tasks_done: 11
 color: warning
 tags:
   - phase-04
@@ -23,7 +23,7 @@ updated: 2026-06-06
 
 ## Progress
 
-> [!info] ⬜ Not Started — 0 / 11 tasks complete
+> [!success] ✅ Complete — 11 / 11 tasks complete
 
 ```dataview
 TABLE tasks_done as "Done", tasks_total as "Total", status as "Status"

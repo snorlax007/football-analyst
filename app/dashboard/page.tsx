@@ -4,6 +4,8 @@ import { getSession } from "@/lib/auth";
 import sql from "@/lib/db";
 import { getUserOrgs } from "@/lib/orgs";
 import UsageBar from "@/components/UsageBar";
+import BillingPortalButton from "@/components/BillingPortalButton";
+import { PLANS, type PlanTier } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,7 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   const month = new Date().toISOString().slice(0, 7);
-  const [usageRows, recentAnalyses, orgs, followedTeams] = await Promise.all([
+  const [usageRows, recentAnalyses, orgs, followedTeams, userRows] = await Promise.all([
     sql`
       SELECT reports_generated FROM user_usage
       WHERE user_id = ${session.userId} AND month = ${month}
@@ -33,9 +35,14 @@ export default async function DashboardPage() {
       WHERE ft.user_id = ${session.userId}
       ORDER BY ft.created_at ASC
     `,
+    sql`SELECT subscription_tier, subscription_status, stripe_customer_id FROM users WHERE id = ${session.userId}`,
   ]);
 
   const used = usageRows.length > 0 ? Number(usageRows[0].reports_generated) : 0;
+  const tier = (userRows[0]?.subscription_tier as PlanTier) ?? "free";
+  const plan = PLANS[tier];
+  const subStatus = userRows[0]?.subscription_status as string | null;
+  const hasStripe = !!userRows[0]?.stripe_customer_id;
 
   const ROLE_BADGE: Record<string, string> = {
     owner: "bg-emerald-500/20 text-emerald-400",
@@ -68,6 +75,37 @@ export default async function DashboardPage() {
           <div className="rounded-2xl bg-white/5 border border-white/10 p-5 text-center">
             <p className="text-3xl font-black text-white">{followedTeams.length}</p>
             <p className="text-xs text-slate-500 mt-1">Teams followed</p>
+          </div>
+        </div>
+
+        {/* Subscription */}
+        <div className="rounded-2xl bg-white/5 border border-white/10 p-5 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-slate-500 mb-0.5">Plan</p>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-bold ${tier === "free" ? "text-slate-300" : "text-emerald-400"}`}>
+                {plan.name}
+              </span>
+              {subStatus && subStatus !== "active" && (
+                <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full font-medium uppercase">
+                  {subStatus}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">{plan.analysesPerMonth} analyses/month</p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {tier === "free" && (
+              <Link
+                href="/pricing"
+                className="text-xs bg-emerald-500 hover:bg-emerald-400 text-black font-semibold px-4 py-2 rounded-lg transition"
+              >
+                Upgrade
+              </Link>
+            )}
+            {hasStripe && (
+              <BillingPortalButton />
+            )}
           </div>
         </div>
 

@@ -20,6 +20,9 @@ export default async function Header() {
           <Link href="/matches" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
             Matches
           </Link>
+          <Link href="/pricing" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden sm:inline-flex">
+            Pricing
+          </Link>
 
           {session ? (
             <>

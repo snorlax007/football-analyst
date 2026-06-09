@@ -39,6 +39,49 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 4 — Payments
+
+> [!success] Phase 4 Complete ✅
+> All 11 tasks done across 3 sections.
+
+**What was built:**
+- `lib/stripe.ts` — Stripe v22 client (API version `2026-05-27.dahlia`), `PLANS` constant (Free/Pro/Team tiers)
+- DB migration: `subscription_tier`, `subscription_status`, `stripe_customer_id`, `stripe_subscription_id`, `subscription_period_end` added to `users` and `organizations`
+- `POST /api/billing/checkout` — creates Stripe Checkout session with 7-day trial, redirects to Stripe hosted page
+- `POST /api/billing/portal` — creates Stripe Customer Portal session for self-service billing management
+- `POST /api/webhooks/stripe` — handles `checkout.session.completed`, `customer.subscription.updated/deleted`, `invoice.payment_failed`; updates user tier in DB
+- `app/pricing/page.tsx` — tier comparison table (Free/Pro/Team), upgrade CTA buttons
+- `components/Paywall.tsx` — gated feature UI component with upgrade link
+- `components/BillingPortalButton.tsx` — client component for portal redirect
+- Updated `app/api/analysis/[matchId]/route.ts` — uses `subscription_tier` for per-user quota limits
+- Updated `app/dashboard/page.tsx` — shows current plan, upgrade CTA, billing portal button
+- Updated `components/Header.tsx` — added Pricing nav link
+
+**Key decisions:**
+- Free: 5/mo · Pro ($29): 100/mo · Team ($99): 500/mo (org-shared)
+- `subscription_period_end` read from `sub.items.data[0].current_period_end` (Stripe v22 moved it off the Subscription root)
+- Stripe keys/price IDs set in `.env.local` (never committed); placeholder values in repo comments
+
+## [2026-06-06] complete | Phase 3 — Orgs + Multi-Tenancy
+
+> [!success] Phase 3 Complete ✅
+> All 14 tasks done across 3 sections.
+
+**What was built:**
+- DB tables: `organizations`, `org_members`, `org_invitations`, `org_usage`, `followed_teams`
+- `lib/orgs.ts` — `getUserOrgs`, `getOrgBySlug`, `getUserRoleInOrg`, `getOrgMembers`, `getPendingInvitations`, `toSlug`
+- `POST /api/org/create`, `GET /api/org/[slug]` — create and read org with members + usage
+- `POST /api/org/[slug]/invite`, `DELETE /api/org/[slug]/invite/[id]` — manage invitations
+- `DELETE /api/org/[slug]/members/[userId]` — remove member
+- `GET /api/invite/[token]`, `POST /api/invite/[token]` — validate and accept invite
+- `POST /api/team/[id]/follow`, `DELETE /api/team/[id]/follow`, `GET /api/user/teams` — team following
+- `GET /api/teams/[id]`, `GET /api/teams/[id]/matches`, `GET /api/teams/[id]/season-stats`
+- `app/org/create/page.tsx`, `app/org/[slug]/page.tsx` — org creation and full org dashboard
+- `app/invite/[token]/page.tsx` — accept invitation flow
+- `app/team/[id]/page.tsx` — team profile with follow button + season stats
+- Updated dashboard and header to show orgs + followed teams
+- `lib/db.ts` — auto-retry on ETIMEDOUT for Neon cold-start resilience
+
 ## [2026-06-06] complete | Phase 2 — Auth + User Accounts
 
 > [!success] Phase 2 Complete ✅
