@@ -132,7 +132,7 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
         </div>
 
         {/* Match Card */}
-        <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-8">
+        <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-5 sm:p-8">
           {loading ? (
             <div className="flex items-center justify-between gap-4">
               <Skeleton className="h-8 w-40" />
@@ -141,22 +141,22 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
             </div>
           ) : (
             <div className="flex items-center justify-between gap-4">
-              <div className="text-center flex-1">
+              <div className="text-center flex-1 min-w-0">
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-semibold">Home</p>
-                <h2 className="text-xl md:text-3xl font-bold">{match?.home_team.name}</h2>
+                <h2 className="text-base sm:text-xl md:text-3xl font-bold leading-tight">{match?.home_team.name}</h2>
                 {hs && <p className="text-xs text-slate-500 mt-1">xG {hs.xg}</p>}
               </div>
-              <div className="text-center flex-shrink-0">
-                <p className="text-5xl md:text-6xl font-black text-emerald-400 tabular-nums leading-none">
-                  {match?.home_score} – {match?.away_score}
+              <div className="text-center flex-shrink-0 px-2">
+                <p className="text-4xl sm:text-5xl md:text-6xl font-black text-emerald-400 tabular-nums leading-none">
+                  {match?.home_score}–{match?.away_score}
                 </p>
                 <span className="mt-3 inline-block text-[10px] bg-slate-700/80 text-slate-400 px-3 py-1 rounded-full uppercase tracking-widest font-semibold">
                   {statusLabel[match?.status ?? ""] ?? match?.status}
                 </span>
               </div>
-              <div className="text-center flex-1">
+              <div className="text-center flex-1 min-w-0">
                 <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-semibold">Away</p>
-                <h2 className="text-xl md:text-3xl font-bold">{match?.away_team.name}</h2>
+                <h2 className="text-base sm:text-xl md:text-3xl font-bold leading-tight">{match?.away_team.name}</h2>
                 {as_ && <p className="text-xs text-slate-500 mt-1">xG {as_.xg}</p>}
               </div>
             </div>
@@ -208,7 +208,7 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
         {!loading && hs && as_ && (
           <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
             <h3 className="text-emerald-400 font-semibold text-base mb-5">⚡ Key Stats Comparison</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
               {[
                 { label: "xG", home: hs.xg, away: as_.xg },
                 { label: "Shots", home: hs.shots, away: as_.shots },
@@ -217,7 +217,7 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
                 { label: "Fouls", home: hs.fouls, away: as_.fouls },
                 { label: "Possession", home: `${hs.possession}%`, away: `${as_.possession}%` },
               ].map(({ label, home, away }) => (
-                <div key={label} className="bg-white/5 rounded-xl p-3">
+                <div key={label} className="bg-white/5 rounded-xl p-3 min-h-[44px]">
                   <p className="text-slate-500 text-xs mb-2">{label}</p>
                   <div className="flex justify-between items-center">
                     <span className="font-bold text-emerald-400">{home}</span>

@@ -46,12 +46,12 @@ export default async function MatchesPage() {
               href={`/matches/${m.id}`}
               className="flex items-center justify-between rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/20 px-6 py-5 transition-all group"
             >
-              <div className="flex-1 text-right">
-                <p className="font-bold text-base group-hover:text-emerald-400 transition-colors">{m.home_name}</p>
+              <div className="flex-1 text-right min-w-0">
+                <p className="font-bold text-base group-hover:text-emerald-400 transition-colors truncate">{m.home_name}</p>
                 <p className="text-xs text-slate-500 mt-0.5">{m.home_short}</p>
               </div>
 
-              <div className="mx-6 text-center flex-shrink-0">
+              <div className="mx-3 sm:mx-6 text-center flex-shrink-0">
                 {m.status === "scheduled" ? (
                   <p className="text-xl font-black text-slate-400">–</p>
                 ) : (
@@ -64,8 +64,8 @@ export default async function MatchesPage() {
                 </span>
               </div>
 
-              <div className="flex-1 text-left">
-                <p className="font-bold text-base">{m.away_name}</p>
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-bold text-base truncate">{m.away_name}</p>
                 <p className="text-xs text-slate-500 mt-0.5">{m.away_short}</p>
               </div>
             </Link>

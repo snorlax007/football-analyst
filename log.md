@@ -39,6 +39,30 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 9 — Mobile & PWA
+
+> [!success] Phase 9 Complete ✅
+> All 7 tasks done across 2 sections.
+
+**What was built:**
+- `public/manifest.json` — full Web App Manifest (standalone display, theme #10b981, SVG icon, shortcuts)
+- `public/icon.svg` — custom football AI SVG app icon
+- `public/offline.html` — offline fallback page with "Go to home" CTA
+- `public/sw.js` — three-layer offline caching: cache-first for `/_next/static/`, network-first+cache for match report pages (`/matches/`, `/share/`), network-first with offline fallback for all others; API routes bypass SW
+- `components/InstallPrompt.tsx` — Add to Home Screen slide-up banner; listens for `beforeinstallprompt`; respects dismissed state in localStorage; hidden in standalone mode
+- `app/layout.tsx` — manifest link, theme-color, apple-touch-icon, viewport-fit=cover
+- Mobile UI fixes in `app/matches/[id]/MatchClient.tsx`: responsive score text, `min-w-0` overflow guards, stats grid `grid-cols-2 sm:grid-cols-3`
+- Mobile UI fixes in `app/matches/page.tsx`: tighter center margin on mobile, `truncate` on team names
+
+**Key decisions:**
+- API routes (`/api/`) completely bypass the service worker — always fresh, never stale
+- Install prompt uses native `beforeinstallprompt` (no third-party library)
+- `display: standalone` in manifest hides browser chrome when installed
+
+**Key unlock:** Coaches adopt — app installable as PWA, works offline for last-viewed reports.
+
+---
+
 ## [2026-06-09] complete | Phase 8 — API & Integrations
 
 > [!success] Phase 8 Complete ✅
