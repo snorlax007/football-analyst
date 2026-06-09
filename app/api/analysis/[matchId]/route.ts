@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import sql from "@/lib/db";
-import { getSession, FREE_LIMIT } from "@/lib/auth";
+import { getSession, FREE_LIMIT, ORG_QUOTA } from "@/lib/auth";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -15,31 +15,45 @@ export async function POST(
   }
 
   const month = new Date().toISOString().slice(0, 7);
-  const usageRows = await sql`
-    SELECT reports_generated FROM user_usage
-    WHERE user_id = ${session.userId} AND month = ${month}
+
+  // Check if user is in an org — org members share a higher quota
+  const orgRows = await sql`
+    SELECT om.org_id FROM org_members om WHERE om.user_id = ${session.userId} LIMIT 1
   `;
-  const used = usageRows.length > 0 ? Number(usageRows[0].reports_generated) : 0;
-  if (used >= FREE_LIMIT) {
+  const orgId = orgRows.length > 0 ? orgRows[0].org_id : null;
+
+  let used = 0;
+  let quota = FREE_LIMIT;
+  let quotaType: "org" | "personal" = "personal";
+
+  if (orgId) {
+    const usageRows = await sql`
+      SELECT reports_generated FROM org_usage WHERE org_id = ${orgId} AND month = ${month}
+    `;
+    used = usageRows.length > 0 ? Number(usageRows[0].reports_generated) : 0;
+    quota = ORG_QUOTA;
+    quotaType = "org";
+  } else {
+    const usageRows = await sql`
+      SELECT reports_generated FROM user_usage WHERE user_id = ${session.userId} AND month = ${month}
+    `;
+    used = usageRows.length > 0 ? Number(usageRows[0].reports_generated) : 0;
+  }
+
+  if (used >= quota) {
     return NextResponse.json(
-      { error: "Monthly limit reached (5/5). Upgrade to Pro for unlimited analyses." },
+      { error: `Monthly limit reached (${quota}/${quota}). ${quotaType === "org" ? "Contact your org owner to upgrade." : "Upgrade to Pro for unlimited analyses."}` },
       { status: 403 }
     );
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json(
-      { error: "ANTHROPIC_API_KEY not configured" },
-      { status: 503 }
-    );
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
   }
 
   const { matchId } = await ctx.params;
   const id = parseInt(matchId);
-
-  if (isNaN(id)) {
-    return NextResponse.json({ error: "Invalid match id" }, { status: 400 });
-  }
+  if (isNaN(id)) return NextResponse.json({ error: "Invalid match id" }, { status: 400 });
 
   const matches = await sql`
     SELECT m.*, ht.name AS home_name, at.name AS away_name
@@ -48,27 +62,25 @@ export async function POST(
     JOIN teams at ON m.away_team_id = at.id
     WHERE m.id = ${id}
   `;
-
-  if (matches.length === 0) {
-    return NextResponse.json({ error: "Match not found" }, { status: 404 });
-  }
+  if (matches.length === 0) return NextResponse.json({ error: "Match not found" }, { status: 404 });
 
   const match = matches[0];
 
-  const stats = await sql`
-    SELECT ms.*, t.name AS team_name
-    FROM match_stats ms JOIN teams t ON ms.team_id = t.id
-    WHERE ms.match_id = ${id}
-  `;
-
-  const players = await sql`
-    SELECT pr.*, p.name, p.position, t.name AS team_name
-    FROM player_ratings pr
-    JOIN players p ON pr.player_id = p.id
-    JOIN teams t ON p.team_id = t.id
-    WHERE pr.match_id = ${id}
-    ORDER BY pr.rating DESC LIMIT 6
-  `;
+  const [stats, players] = await Promise.all([
+    sql`
+      SELECT ms.*, t.name AS team_name
+      FROM match_stats ms JOIN teams t ON ms.team_id = t.id
+      WHERE ms.match_id = ${id}
+    `,
+    sql`
+      SELECT pr.*, p.name, p.position, t.name AS team_name
+      FROM player_ratings pr
+      JOIN players p ON pr.player_id = p.id
+      JOIN teams t ON p.team_id = t.id
+      WHERE pr.match_id = ${id}
+      ORDER BY pr.rating DESC LIMIT 6
+    `,
+  ]);
 
   const hs = stats.find((s) => s.team_id === match.home_team_id);
   const as_ = stats.find((s) => s.team_id === match.away_team_id);
@@ -103,9 +115,7 @@ Reply with ONLY valid JSON — no markdown, no commentary:
 
   const text = message.content[0].type === "text" ? message.content[0].text : "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
-  }
+  if (!jsonMatch) return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
 
   const { insights } = JSON.parse(jsonMatch[0]) as { insights: string[] };
 
@@ -114,12 +124,27 @@ Reply with ONLY valid JSON — no markdown, no commentary:
     VALUES (${id}, ${JSON.stringify(insights)}, ${"claude-sonnet-4-6"})
   `;
 
-  await sql`
-    INSERT INTO user_usage (user_id, month, reports_generated)
-    VALUES (${session.userId}, ${month}, 1)
-    ON CONFLICT (user_id, month)
-    DO UPDATE SET reports_generated = user_usage.reports_generated + 1
-  `;
+  // Increment quota
+  if (orgId) {
+    await sql`
+      INSERT INTO org_usage (org_id, month, reports_generated)
+      VALUES (${orgId}, ${month}, 1)
+      ON CONFLICT (org_id, month)
+      DO UPDATE SET reports_generated = org_usage.reports_generated + 1
+    `;
+  } else {
+    await sql`
+      INSERT INTO user_usage (user_id, month, reports_generated)
+      VALUES (${session.userId}, ${month}, 1)
+      ON CONFLICT (user_id, month)
+      DO UPDATE SET reports_generated = user_usage.reports_generated + 1
+    `;
+  }
 
-  return NextResponse.json({ insights, model: "claude-sonnet-4-6", remaining: FREE_LIMIT - used - 1 });
+  return NextResponse.json({
+    insights,
+    model: "claude-sonnet-4-6",
+    remaining: quota - used - 1,
+    quotaType,
+  });
 }

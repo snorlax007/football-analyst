@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { getSession } from "@/lib/auth";
+import { getUserOrgs } from "@/lib/orgs";
 import LogoutButton from "./LogoutButton";
 
 export default async function Header() {
   const session = await getSession();
+  const orgs = session ? await getUserOrgs(session.userId) : [];
+  const primaryOrg = orgs[0] ?? null;
 
   return (
     <header className="sticky top-0 z-50 bg-slate-950/80 border-b border-white/5 backdrop-blur-md">
@@ -13,19 +16,26 @@ export default async function Header() {
           <span className="hidden sm:inline text-white">Football AI</span>
         </Link>
 
-        <nav className="flex items-center gap-2 text-sm">
+        <nav className="flex items-center gap-1 text-sm">
           <Link href="/matches" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
             Matches
           </Link>
 
           {session ? (
             <>
+              {primaryOrg && (
+                <Link
+                  href={`/org/${primaryOrg.slug}`}
+                  className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden sm:inline-flex items-center gap-1"
+                >
+                  <span className="text-emerald-400/70 text-xs">🏢</span>
+                  <span className="max-w-[80px] truncate">{primaryOrg.name}</span>
+                </Link>
+              )}
               <Link href="/dashboard" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
                 Dashboard
               </Link>
-              <span className="text-slate-600 text-xs hidden sm:inline">
-                {session.name}
-              </span>
+              <span className="text-slate-600 text-xs hidden lg:inline px-1">{session.name}</span>
               <LogoutButton />
             </>
           ) : (

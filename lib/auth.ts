@@ -7,6 +7,7 @@ const KEY = new TextEncoder().encode(
 
 export const COOKIE = "fa_token";
 export const FREE_LIMIT = 5;
+export const ORG_QUOTA = 20;
 
 export interface Session {
   userId: string;
