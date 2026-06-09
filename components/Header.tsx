@@ -26,6 +26,12 @@ export default async function Header() {
 
           {session ? (
             <>
+              <Link href="/scouting" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden md:inline-flex">
+                Scouting
+              </Link>
+              <Link href="/pre-match" className="text-slate-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden lg:inline-flex">
+                Pre-Match
+              </Link>
               {primaryOrg && (
                 <Link
                   href={`/org/${primaryOrg.slug}`}

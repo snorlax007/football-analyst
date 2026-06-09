@@ -2,6 +2,9 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const SeasonTrends = dynamic(() => import("./SeasonTrends"), { ssr: false });
 
 interface Team {
   id: number;
@@ -201,6 +204,9 @@ export default function TeamClient({ params }: { params: Promise<{ id: string }>
             </div>
           )}
         </div>
+
+        {/* Season Trends */}
+        <SeasonTrends teamId={id} />
 
       </main>
     </div>

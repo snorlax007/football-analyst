@@ -2,7 +2,10 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import type { MatchDetail } from "@/lib/types";
+
+const FormationViz = dynamic(() => import("./FormationViz"), { ssr: false });
 
 function StatBar({ label, value, pct }: { label: string; value: string; pct: number }) {
   return (
@@ -159,6 +162,9 @@ export default function MatchClient({ params }: { params: Promise<{ id: string }
             </div>
           )}
         </div>
+
+        {/* Formation Visualizer */}
+        <FormationViz matchId={id} />
 
         {/* Stats + Players */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

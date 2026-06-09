@@ -39,6 +39,35 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 7 — AI Depth
+
+> [!success] Phase 7 Complete ✅
+> All 14 tasks done across 4 sections.
+
+**What was built:**
+- `app/api/formation/[matchId]` — detects formation (e.g. 4-3-3) from player positions, maps to pitch coordinates, Claude Haiku generates tactical description
+- `app/matches/[id]/FormationViz.tsx` — SVG pitch diagram (360×540) with home/away player nodes, heatmap blobs, goal indicators, hover tooltip; lazy-loaded via `next/dynamic`
+- `app/scouting/page.tsx` — player search UI with position/rating/goals filters + natural language query (Claude ranks results by query intent); shortlist tab with save/remove/PDF download
+- `app/api/scouting/players` — filters players from DB; Claude Haiku ranks by NL query when provided
+- `app/api/scouting/shortlist` — saves/lists player shortlist per user (auto-creates `player_shortlists` table)
+- `app/api/report/scout/[playerId]` — PDF scout report (A4, dark theme, @react-pdf/renderer)
+- `app/pre-match/page.tsx` — team selector UI, generates Claude Sonnet pre-match tactical brief from last 5 matches per team; saves to DB; PDF download; Pro+ gated
+- `app/api/pre-match` — POST generates report via Claude Sonnet 4.6 (form analysis, tactical profile, key match-ups, set pieces, prediction); GET returns past reports (auto-creates `pre_match_reports` table)
+- `app/api/report/pre-match/[reportId]` — PDF of pre-match tactical brief with markdown-to-PDF renderer
+- `app/api/team/[id]/trends` — per-match trend data + league average benchmarks + Claude Haiku season narrative
+- `app/team/[id]/SeasonTrends.tsx` — pure SVG line charts (xG, possession, press intensity, pass accuracy), benchmark bars (team vs league avg with colored indicators), AI narrative; lazy-loaded
+- `app/api/teams/list` — simple GET all teams for dropdowns
+- Header updated with Scouting + Pre-Match links for logged-in users
+
+**Key decisions:**
+- SVG pitch rendered client-side only (`next/dynamic` + `ssr: false`) to avoid SSR mismatch with mouse events
+- `player_shortlists` and `pre_match_reports` tables created with `IF NOT EXISTS` inline in route handlers (no separate migration)
+- Pre-match report uses Claude Sonnet 4.6 (not Haiku) for higher-quality tactical analysis
+- Season trend charts use pure SVG — no Recharts dependency added
+- TypeScript clean; 54 routes in production build
+
+---
+
 ## [2026-06-09] complete | Phase 6 — Real-Time & Alerts
 
 > [!success] Phase 6 Complete ✅
