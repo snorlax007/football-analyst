@@ -3,28 +3,59 @@ import sql from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const runtime = "nodejs";
-// Disable caching so SSE streams properly
 export const dynamic = "force-dynamic";
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
-async function generateEventComment(event: Record<string, unknown>, matchContext: string): Promise<string> {
+// Event types that get AI commentary
+const COMMENTARY_TYPES = new Set([
+  "goal", "own_goal", "var", "penalty", "red_card",
+  "yellow_card", "substitution", "corner",
+]);
+
+async function generateEventComment(
+  event: Record<string, unknown>,
+  matchContext: string
+): Promise<string> {
   if (!anthropic) return "";
   try {
+    const typeDescriptions: Record<string, string> = {
+      goal: "GOAL SCORED",
+      own_goal: "OWN GOAL",
+      yellow_card: "yellow card shown",
+      red_card: "RED CARD — player sent off",
+      substitution: "substitution",
+      var: "VAR review",
+      penalty: "penalty",
+      corner: "corner kick opportunity",
+    };
+    const typeLabel = typeDescriptions[event.type as string] ?? String(event.type);
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 80,
       messages: [{
         role: "user",
-        content: `You are a live football commentator. Write ONE sharp, energetic sentence (max 20 words) about this event. No emojis. Event: ${String(event.type)} by ${String(event.player_name ?? "unknown")} (${String(event.description ?? "")}) at minute ${String(event.minute ?? "?")}. Context: ${matchContext}`,
+        content: `Live football commentator. ONE sharp sentence (max 18 words) about: ${typeLabel} — ${String(event.player_name ?? "unknown")} (${String(event.description ?? "")}) at ${String(event.minute ?? "?")}'. Match: ${matchContext}. No emojis.`,
       }],
     });
     return msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
   } catch {
     return "";
   }
+}
+
+interface LiveStats {
+  team_id: number;
+  possession: number;
+  shots: number;
+  shots_on_target: number;
+  xg: number;
+  corners: number;
+  fouls: number;
+  yellow_cards: number;
+  red_cards: number;
 }
 
 export async function GET(
@@ -40,6 +71,8 @@ export async function GET(
   const stream = new ReadableStream({
     async start(controller) {
       let lastEventId: string | null = null;
+      let lastStatsHash = "";
+      let lastMinute: number | null = -1;
       let closed = false;
 
       req.signal.addEventListener("abort", () => {
@@ -58,9 +91,10 @@ export async function GET(
         if (closed) return;
 
         try {
-          const [matches, eventsRows] = await Promise.all([
+          const [matches, eventsRows, statsRows] = await Promise.all([
             sql`
               SELECT m.id, m.home_score, m.away_score, m.status, m.match_date,
+                     m.current_minute,
                      ht.name AS home_name, ht.short_name AS home_short,
                      at.name AS away_name, at.short_name AS away_short,
                      ht.id AS home_team_id, at.id AS away_team_id
@@ -70,12 +104,19 @@ export async function GET(
               WHERE m.id = ${id}
             `,
             sql`
-              SELECT id, type, minute, player_name, description, ai_comment,
-                     t.name AS team_name, created_at
+              SELECT le.id, le.type, le.minute, le.player_name,
+                     le.description, le.ai_comment, t.name AS team_name,
+                     le.team_id, le.created_at
               FROM live_events le
               LEFT JOIN teams t ON le.team_id = t.id
               WHERE le.match_id = ${id}
-              ORDER BY created_at ASC
+              ORDER BY le.created_at ASC
+            `,
+            sql`
+              SELECT ms.team_id, ms.possession, ms.shots, ms.shots_on_target,
+                     ms.xg, ms.corners, ms.fouls, ms.yellow_cards, ms.red_cards
+              FROM match_stats ms
+              WHERE ms.match_id = ${id}
             `,
           ]);
 
@@ -97,8 +138,7 @@ export async function GET(
             const matchContext = `${String(match.home_name)} ${String(match.home_score)}-${String(match.away_score)} ${String(match.away_name)}`;
 
             for (const ev of newEvents) {
-              // Generate AI comment if not already set
-              if (!ev.ai_comment && (ev.type === "goal" || ev.type === "var" || ev.type === "penalty")) {
+              if (!ev.ai_comment && COMMENTARY_TYPES.has(ev.type as string)) {
                 const comment = await generateEventComment(ev, matchContext);
                 if (comment) {
                   await sql`UPDATE live_events SET ai_comment = ${comment} WHERE id = ${ev.id as string}`;
@@ -110,7 +150,11 @@ export async function GET(
             lastEventId = String(eventsRows[eventsRows.length - 1]?.id ?? lastEventId);
           }
 
-          // Always send current match state
+          // Send state update when score/status/minute changes
+          const minute = (match.current_minute ?? null) as number | null;
+          const stateChanged = minute !== lastMinute;
+          lastMinute = minute;
+
           send({
             type: "state",
             match: {
@@ -118,31 +162,51 @@ export async function GET(
               homeScore: match.home_score,
               awayScore: match.away_score,
               status: match.status,
+              currentMinute: match.current_minute ?? null,
               homeName: match.home_name,
               awayName: match.away_name,
               homeShort: match.home_short,
               awayShort: match.away_short,
+              homeTeamId: match.home_team_id,
+              awayTeamId: match.away_team_id,
             },
             eventCount: eventsRows.length,
           });
 
-          // Stop polling once match is finished
+          // Send stats when they change
+          if (statsRows.length > 0) {
+            const statsHash = JSON.stringify(statsRows.map((s) => ({
+              t: s.team_id, p: s.possession, s: s.shots, xg: s.xg,
+            })));
+            if (statsHash !== lastStatsHash || stateChanged) {
+              lastStatsHash = statsHash;
+              const home = statsRows.find((s) => s.team_id === match.home_team_id) as LiveStats | undefined;
+              const away = statsRows.find((s) => s.team_id === match.away_team_id) as LiveStats | undefined;
+              send({
+                type: "stats",
+                homeStats: home ?? null,
+                awayStats: away ?? null,
+              });
+            }
+          }
+
           if (match.status === "finished") {
             send({ type: "finished" });
             closed = true;
             try { controller.close(); } catch {}
             return;
           }
-        } catch (err) {
+        } catch {
           send({ type: "heartbeat" });
         }
 
         if (!closed) {
-          setTimeout(poll, 10000); // poll every 10s
+          // Poll faster for live matches
+          const interval = 5000;
+          setTimeout(poll, interval);
         }
       }
 
-      // Initial send immediately, then poll
       send({ type: "connected", matchId: id });
       await poll();
     },
