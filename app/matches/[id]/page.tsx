@@ -1,246 +1,94 @@
-"use client";
+import type { Metadata } from "next";
+import sql from "@/lib/db";
+import MatchClient from "./MatchClient";
 
-import { useEffect, useState, use } from "react";
-import Link from "next/link";
-import type { MatchDetail } from "@/lib/types";
+export const dynamic = "force-dynamic";
 
-function StatBar({ label, value, pct }: { label: string; value: string; pct: number }) {
-  return (
-    <div>
-      <div className="flex justify-between items-center text-sm mb-2">
-        <span className="text-slate-300">{label}</span>
-        <span className="text-emerald-400 font-bold tabular-nums">{value}</span>
-      </div>
-      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full transition-all duration-700"
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
-    </div>
-  );
+export async function generateMetadata(
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Metadata> {
+  const { id } = await params;
+  const matchId = parseInt(id);
+  if (isNaN(matchId)) return { title: "Match" };
+
+  const rows = await sql`
+    SELECT m.home_score, m.away_score, m.league, m.match_date,
+           ht.name AS home_name, at.name AS away_name
+    FROM matches m
+    JOIN teams ht ON m.home_team_id = ht.id
+    JOIN teams at ON m.away_team_id = at.id
+    WHERE m.id = ${matchId}
+  `.catch(() => []);
+
+  if (rows.length === 0) return { title: "Match" };
+
+  const m = rows[0];
+  const title = `${m.home_name} ${m.home_score}–${m.away_score} ${m.away_name}`;
+  const description = `AI tactical analysis of ${m.home_name} vs ${m.away_name}. ${m.league ?? "Premier League"} match stats, player ratings, and deep insights.`;
+  const ogImage = `/api/og/match/${matchId}`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title: `${title} | Football AI Analyst`,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+      type: "article",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+    },
+  };
 }
 
-function Skeleton({ className }: { className?: string }) {
-  return <div className={`animate-pulse bg-white/10 rounded-lg ${className ?? ""}`} />;
-}
+export default async function MatchPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const matchId = parseInt(id);
 
-export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  let jsonLd = null;
+  if (!isNaN(matchId)) {
+    const rows = await sql`
+      SELECT m.home_score, m.away_score, m.league, m.match_date, m.status,
+             ht.name AS home_name, at.name AS away_name
+      FROM matches m
+      JOIN teams ht ON m.home_team_id = ht.id
+      JOIN teams at ON m.away_team_id = at.id
+      WHERE m.id = ${matchId}
+    `.catch(() => []);
 
-  const [match, setMatch] = useState<MatchDetail | null>(null);
-  const [insights, setInsights] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [remaining, setRemaining] = useState<number | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/matches/${id}`)
-      .then((r) => r.json())
-      .then((data: MatchDetail) => {
-        setMatch(data);
-        if (data.analysis?.insights) setInsights(data.analysis.insights);
-      })
-      .catch(() => setError("Could not load match data."))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  async function runAnalysis() {
-    setAnalyzing(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/analysis/${id}`, { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 401) throw new Error("Please sign in to generate analysis");
-        if (res.status === 403) throw new Error(data.error);
-        throw new Error(data.error ?? "Analysis failed");
-      }
-      setInsights(data.insights);
-      if (data.remaining !== undefined) setRemaining(data.remaining);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Analysis failed");
-    } finally {
-      setAnalyzing(false);
+    if (rows.length > 0) {
+      const m = rows[0];
+      jsonLd = {
+        "@context": "https://schema.org",
+        "@type": "SportsEvent",
+        name: `${m.home_name} vs ${m.away_name}`,
+        sport: "Soccer",
+        homeTeam: { "@type": "SportsTeam", name: m.home_name },
+        awayTeam: { "@type": "SportsTeam", name: m.away_name },
+        startDate: m.match_date,
+        eventStatus: m.status === "finished" ? "https://schema.org/EventScheduled" : undefined,
+        description: `${m.home_name} ${m.home_score}–${m.away_score} ${m.away_name}. ${m.league ?? "Premier League"} match with AI tactical analysis.`,
+      };
     }
   }
 
-  const hs = match?.home_stats;
-  const as_ = match?.away_stats;
-  const statusLabel: Record<string, string> = { finished: "Full Time", live: "Live", scheduled: "Upcoming" };
-
-  const stats = hs
-    ? [
-        { label: "Possession", value: `${hs.possession}%`, pct: Number(hs.possession) },
-        { label: "Pass Accuracy", value: `${hs.pass_accuracy}%`, pct: Number(hs.pass_accuracy) },
-        { label: "Expected Goals (xG)", value: String(hs.xg), pct: (Number(hs.xg) / 4) * 100 },
-        { label: "Pressing Intensity", value: `${hs.press_intensity}%`, pct: Number(hs.press_intensity) },
-        { label: "Shots on Target", value: `${hs.shots_on_target} / ${hs.shots}`, pct: hs.shots ? (hs.shots_on_target / hs.shots) * 100 : 0 },
-      ]
-    : [];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-6">
-
-        <div className="flex items-center gap-3">
-          <Link href="/matches" className="text-slate-500 hover:text-white text-sm transition-colors">
-            ← Matches
-          </Link>
-          {match && (
-            <span className="text-slate-700 text-xs">/ {match.league}</span>
-          )}
-        </div>
-
-        {/* Match Card */}
-        <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-8">
-          {loading ? (
-            <div className="flex items-center justify-between gap-4">
-              <Skeleton className="h-8 w-40" />
-              <Skeleton className="h-14 w-32" />
-              <Skeleton className="h-8 w-40" />
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-center flex-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-semibold">Home</p>
-                <h2 className="text-xl md:text-3xl font-bold">{match?.home_team.name}</h2>
-                {hs && <p className="text-xs text-slate-500 mt-1">xG {hs.xg}</p>}
-              </div>
-              <div className="text-center flex-shrink-0">
-                <p className="text-5xl md:text-6xl font-black text-emerald-400 tabular-nums leading-none">
-                  {match?.home_score} – {match?.away_score}
-                </p>
-                <span className="mt-3 inline-block text-[10px] bg-slate-700/80 text-slate-400 px-3 py-1 rounded-full uppercase tracking-widest font-semibold">
-                  {statusLabel[match?.status ?? ""] ?? match?.status}
-                </span>
-              </div>
-              <div className="text-center flex-1">
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2 font-semibold">Away</p>
-                <h2 className="text-xl md:text-3xl font-bold">{match?.away_team.name}</h2>
-                {as_ && <p className="text-xs text-slate-500 mt-1">xG {as_.xg}</p>}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Stats + Players */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
-            <h3 className="text-emerald-400 font-semibold text-base mb-1">📊 Team Statistics</h3>
-            {match && <p className="text-slate-500 text-xs mb-5">{match.home_team.name}</p>}
-            {loading ? (
-              <div className="space-y-5">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8" />)}</div>
-            ) : (
-              <div className="space-y-5">{stats.map((s) => <StatBar key={s.label} {...s} />)}</div>
-            )}
-          </div>
-
-          <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
-            <h3 className="text-emerald-400 font-semibold text-base mb-6">⭐ Top Player Ratings</h3>
-            {loading ? (
-              <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-            ) : (
-              <div className="space-y-3">
-                {(match?.players ?? []).map((p, i) => (
-                  <div key={p.id} className="flex items-center gap-4 bg-white/5 hover:bg-white/10 transition-colors rounded-xl px-4 py-3 group">
-                    <span className="text-slate-600 text-xs font-mono w-4 text-center">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm truncate">{p.name}</p>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-widest">{p.position} · {p.team_name}</p>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xl font-black text-emerald-400 tabular-nums">{Number(p.rating).toFixed(1)}</span>
-                      {(p.goals > 0 || p.assists > 0) && (
-                        <p className="text-[10px] text-slate-500">{p.goals > 0 ? `${p.goals}G` : ""}{p.assists > 0 ? ` ${p.assists}A` : ""}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Stats Comparison */}
-        {!loading && hs && as_ && (
-          <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
-            <h3 className="text-emerald-400 font-semibold text-base mb-5">⚡ Key Stats Comparison</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              {[
-                { label: "xG", home: hs.xg, away: as_.xg },
-                { label: "Shots", home: hs.shots, away: as_.shots },
-                { label: "On Target", home: hs.shots_on_target, away: as_.shots_on_target },
-                { label: "Corners", home: hs.corners, away: as_.corners },
-                { label: "Fouls", home: hs.fouls, away: as_.fouls },
-                { label: "Possession", home: `${hs.possession}%`, away: `${as_.possession}%` },
-              ].map(({ label, home, away }) => (
-                <div key={label} className="bg-white/5 rounded-xl p-3">
-                  <p className="text-slate-500 text-xs mb-2">{label}</p>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-emerald-400">{home}</span>
-                    <span className="text-slate-600 text-xs">vs</span>
-                    <span className="font-bold text-slate-300">{away}</span>
-                  </div>
-                  <div className="flex justify-between text-[9px] text-slate-600 mt-1">
-                    <span>{match?.home_team.short_name}</span>
-                    <span>{match?.away_team.short_name}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* AI Analysis */}
-        <div className="rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md p-6">
-          <h3 className="text-emerald-400 font-semibold text-base mb-1">🤖 AI Tactical Analysis</h3>
-          <p className="text-slate-500 text-xs mb-5">
-            Powered by Claude · Real match data
-            {remaining !== null && (
-              <span className="ml-2 text-slate-600">· {remaining} free report{remaining !== 1 ? "s" : ""} remaining</span>
-            )}
-          </p>
-
-          <div className="space-y-3 min-h-28">
-            {analyzing ? (
-              <div className="flex items-center gap-3 text-slate-400 py-4">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
-                </span>
-                <span className="animate-pulse text-sm">Claude is analyzing match events…</span>
-              </div>
-            ) : error ? (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-red-400 text-sm">
-                {error}
-                {error.includes("log in") && (
-                  <Link href="/login" className="ml-2 underline hover:text-red-300">Sign in →</Link>
-                )}
-              </div>
-            ) : insights.length > 0 ? (
-              insights.map((text, i) => (
-                <div key={i} className="flex gap-3 bg-white/5 rounded-xl px-4 py-3 border-l-2 border-emerald-500/60">
-                  <span className="text-emerald-500 text-lg leading-none mt-0.5 flex-shrink-0">›</span>
-                  <p className="text-slate-300 text-sm leading-relaxed">{text}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-slate-500 text-sm py-4">Click below to generate AI tactical analysis for this match.</p>
-            )}
-          </div>
-
-          <button
-            onClick={runAnalysis}
-            disabled={analyzing || loading}
-            className="mt-6 w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-bold text-sm tracking-wide transition-all active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {analyzing ? "Analyzing…" : "Generate New AI Analysis"}
-          </button>
-        </div>
-
-      </main>
-    </div>
+    <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
+      <MatchClient params={params} />
+    </>
   );
 }

@@ -1,12 +1,12 @@
 ---
 phase: 5
 title: "Export & Sharing"
-status: todo
+status: done
 week: "6"
 goal: "Make the product go viral and useful offline"
 key_unlock: "Viral loop"
 tasks_total: 10
-tasks_done: 0
+tasks_done: 10
 color: tip
 tags:
   - phase-05

@@ -39,6 +39,29 @@ Quick grep: `grep "^## \[" log.md | tail -10`
 
 *Add new entries above this line as you work.*
 
+## [2026-06-09] complete | Phase 5 — Export & Sharing
+
+> [!success] Phase 5 Complete ✅
+> All 10 tasks done across 3 sections.
+
+**What was built:**
+- `GET /api/report/[matchId]/pdf` — server-side PDF generation via `@react-pdf/renderer` v4; gated Pro+ only
+- PDF includes: match header, team stats table, player ratings, AI insights, branded footer
+- `GET /api/og/match/[id]` — 1200×630 Open Graph image (ImageResponse from `next/og`); score, teams, top AI insight
+- `app/share/[matchId]/page.tsx` — public (no login) shareable match analysis with full stats, ratings, AI insights
+- `app/share/[matchId]/ShareButtons.tsx` — Twitter/X, WhatsApp, LinkedIn, copy-link share buttons
+- `app/sitemap.ts` — generates `/sitemap.xml` from all matches + teams + share pages
+- `app/matches/[id]/page.tsx` converted to server wrapper with `generateMetadata` (og:title, og:image, twitter:card) + JSON-LD (SportsEvent schema)
+- `app/team/[id]/page.tsx` converted to server wrapper with `generateMetadata` + JSON-LD (SportsTeam schema)
+- PDF download button on match page, share bar (Twitter/X, WhatsApp, public link)
+- `next.config.ts` — `serverExternalPackages: ["@react-pdf/renderer"]` to prevent bundling issues
+
+**Key decisions:**
+- PDF gated behind Pro+ (403 for free users with upgrade URL)
+- `renderToBuffer` + `new Uint8Array(buffer)` pattern for `NextResponse` compatibility
+- Match/team pages split into server wrapper + existing client component (preserves client-side interactivity while adding SEO)
+- Sitemap uses `force-dynamic` to avoid static prerender failure on Neon DB call
+
 ## [2026-06-09] complete | Phase 4 — Payments
 
 > [!success] Phase 4 Complete ✅
