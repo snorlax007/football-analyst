@@ -7,7 +7,11 @@ import { deliverWebhook } from "@/lib/webhooks";
 import { inngest } from "@/lib/inngest";
 import { checkRateLimit, LIMITS } from "@/lib/rateLimit";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _anthropic: Anthropic | null = null;
+function getAnthropic(): Anthropic {
+  if (!_anthropic) _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _anthropic;
+}
 
 export async function POST(
   _req: NextRequest,
@@ -169,7 +173,7 @@ ${players.map((p) => `  ${p.name} (${p.team_name}, ${p.position}): ${p.rating}/1
 Reply with ONLY valid JSON — no markdown, no commentary:
 {"insights":["insight 1","insight 2","insight 3","insight 4"]}`;
 
-  const message = await anthropic.messages.create({
+  const message = await getAnthropic().messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
