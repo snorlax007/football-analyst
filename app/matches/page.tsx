@@ -1,13 +1,18 @@
 import sql from "@/lib/db";
-import MatchList from "./MatchList";
+import MatchesShell from "./MatchesShell";
 
 export const dynamic = "force-dynamic";
 
 export default async function MatchesPage() {
+  // Add competition column if not yet present (migration-safe)
+  try {
+    await sql`ALTER TABLE matches ADD COLUMN IF NOT EXISTS competition TEXT`;
+  } catch {}
+
   const rows = await sql`
     SELECT
       m.id, m.home_score, m.away_score, m.status, m.current_minute,
-      m.match_date, m.league,
+      m.match_date, m.league, m.competition,
       ht.name AS home_name, ht.short_name AS home_short,
       at.name AS away_name, at.short_name AS away_short
     FROM matches m
@@ -16,6 +21,7 @@ export default async function MatchesPage() {
     ORDER BY
       CASE m.status WHEN 'live' THEN 0 WHEN 'scheduled' THEN 1 ELSE 2 END,
       m.match_date DESC
+    LIMIT 200
   `;
 
   const matches = rows.map((m) => ({
@@ -30,38 +36,20 @@ export default async function MatchesPage() {
     awayShort:     m.away_short as string,
     matchDate:     m.match_date as string,
     league:        (m.league ?? null) as string | null,
+    competition:   (m.competition ?? null) as string | null,
   }));
+
+  // Build competition filter options from actual data
+  const compSet = new Set(matches.map((m) => m.competition ?? m.league ?? "Other").filter(Boolean));
+  const competitions = Array.from(compSet);
 
   const liveCount = matches.filter((m) => m.status === "live").length;
 
   return (
-    <div className="min-h-screen text-white">
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <div className="mb-8 flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-black wc-gold-text">Matches</h1>
-            <p className="text-slate-500 text-sm mt-1">
-              {liveCount > 0
-                ? `${liveCount} match${liveCount > 1 ? "es" : ""} live now · scores update automatically`
-                : "Click a match to view stats and AI analysis"}
-            </p>
-          </div>
-          {liveCount > 0 && (
-            <div className="flex items-center gap-2 text-xs font-bold mt-1" style={{ color: "#e63946" }}>
-              <span className="live-dot" />
-              Live
-            </div>
-          )}
-        </div>
-
-        <MatchList initial={matches} />
-
-        {matches.length > 0 && (
-          <p className="text-center text-slate-700 text-xs mt-8">
-            {matches.length} match{matches.length !== 1 ? "es" : ""}
-          </p>
-        )}
-      </main>
-    </div>
+    <MatchesShell
+      matches={matches}
+      competitions={competitions}
+      liveCount={liveCount}
+    />
   );
 }
