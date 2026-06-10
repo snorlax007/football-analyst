@@ -12,9 +12,10 @@ function auth(req: NextRequest) {
   return req.headers.get("x-admin-secret") === secret;
 }
 
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
+function getAnthropic() {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+}
 
 interface GeneratedStats {
   home: {
@@ -34,6 +35,7 @@ async function generateStats(
   homeScore: number, awayScore: number,
   competition: string
 ): Promise<GeneratedStats | null> {
+  const anthropic = getAnthropic();
   if (!anthropic) return null;
 
   try {
@@ -64,7 +66,7 @@ Make stats consistent with the scoreline. Possession must sum to 100.`,
 export async function POST(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!anthropic) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
   }
 

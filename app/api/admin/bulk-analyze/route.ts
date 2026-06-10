@@ -4,17 +4,13 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // 5 min — may analyze many matches
+export const maxDuration = 60;
 
 function auth(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (!secret) return true;
   return req.headers.get("x-admin-secret") === secret;
 }
-
-const anthropic = process.env.ANTHROPIC_API_KEY
-  ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  : null;
 
 async function analyzeMatch(matchId: number): Promise<string[]> {
   const [matchRows, statsRows] = await Promise.all([
@@ -44,7 +40,8 @@ async function analyzeMatch(matchId: number): Promise<string[]> {
 ${String(m.away_name)}: Possession ${String(as_.possession)}% | xG ${String(as_.xg)} | Shots ${String(as_.shots)} (${String(as_.shots_on_target)} on target) | Pass accuracy ${String(as_.pass_accuracy)}% | Corners ${String(as_.corners)} | Fouls ${String(as_.fouls)}`
     : "(No detailed stats available)";
 
-  if (!anthropic) throw new Error("ANTHROPIC_API_KEY not set");
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const resp = await anthropic.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -71,7 +68,7 @@ Return format: ["insight 1","insight 2","insight 3","insight 4"]`,
 // Body: { days?: number (default 7), maxMatches?: number (default 10) }
 export async function POST(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!anthropic) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+  if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
 
   const body = (await req.json().catch(() => ({}))) as { days?: number; maxMatches?: number };
   const days       = body.days       ?? 7;
