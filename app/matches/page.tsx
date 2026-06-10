@@ -35,23 +35,20 @@ export default async function MatchesPage() {
   const liveCount = matches.filter((m) => m.status === "live").length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white">
+    <div className="min-h-screen text-white">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-black">Matches</h1>
+            <h1 className="text-2xl font-black wc-gold-text">Matches</h1>
             <p className="text-slate-500 text-sm mt-1">
               {liveCount > 0
                 ? `${liveCount} match${liveCount > 1 ? "es" : ""} live now · scores update automatically`
-                : "Click any match to view stats and AI analysis"}
+                : "Click a match to view stats and AI analysis"}
             </p>
           </div>
           {liveCount > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-red-400 font-semibold mt-1">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-              </span>
+            <div className="flex items-center gap-2 text-xs font-bold mt-1" style={{ color: "#e63946" }}>
+              <span className="live-dot" />
               Live
             </div>
           )}
@@ -60,7 +57,7 @@ export default async function MatchesPage() {
         <MatchList initial={matches} />
 
         {matches.length > 0 && (
-          <p className="text-center text-slate-600 text-xs mt-8">
+          <p className="text-center text-slate-700 text-xs mt-8">
             {matches.length} match{matches.length !== 1 ? "es" : ""}
           </p>
         )}

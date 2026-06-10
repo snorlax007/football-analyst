@@ -94,14 +94,14 @@ export default function MatchList({ initial }: { initial: MatchRow[] }) {
           <Link
             key={m.id}
             href={isLive ? `/live/${m.id}` : `/matches/${m.id}`}
-            className={`flex items-center justify-between rounded-2xl border px-6 py-5 transition-all group ${
-              isLive
-                ? "bg-red-500/5 border-red-500/30 hover:border-red-400/60 hover:bg-red-500/10"
-                : "bg-white/5 hover:bg-white/10 border-white/10 hover:border-emerald-500/20"
-            }`}
+            className="group flex items-center justify-between rounded-2xl px-6 py-5 transition-all wc-card wc-card-hover shimmer-parent relative overflow-hidden"
+            style={isLive ? {
+              background: "rgba(230,57,70,0.06)",
+              borderColor: "rgba(230,57,70,0.35)",
+            } : undefined}
           >
             <div className="flex-1 text-right min-w-0">
-              <p className="font-bold text-base group-hover:text-emerald-400 transition-colors truncate">
+              <p className="font-bold text-base truncate transition-colors group-hover:text-[#f0b429]">
                 {m.homeName}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">{m.homeShort}</p>
@@ -111,24 +111,24 @@ export default function MatchList({ initial }: { initial: MatchRow[] }) {
               {m.status === "scheduled" ? (
                 <p className="text-xl font-black text-slate-400">–</p>
               ) : (
-                <p className={`text-xl font-black tabular-nums ${isLive ? "text-red-400" : "text-emerald-400"}`}>
+                <p
+                  className="text-xl font-black tabular-nums"
+                  style={{ color: isLive ? "#e63946" : "#f0b429" }}
+                >
                   {m.homeScore} – {m.awayScore}
                 </p>
               )}
               <div className="mt-1 flex items-center justify-center gap-1.5">
                 <span
-                  className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-widest ${
-                    STATUS_COLOR[m.status] ?? STATUS_COLOR.finished
-                  }`}
+                  className="inline-block text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase tracking-widest"
+                  style={isLive
+                    ? { background: "rgba(230,57,70,0.15)", color: "#e63946" }
+                    : { background: "rgba(240,180,41,0.1)", color: "#f0b429" }
+                  }
                 >
                   {statusText}
                 </span>
-                {isLive && (
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500" />
-                  </span>
-                )}
+                {isLive && <span className="live-dot" />}
               </div>
             </div>
 

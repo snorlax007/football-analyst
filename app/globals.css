@@ -1,1 +1,150 @@
 @import "tailwindcss";
+
+/* ── WC 2026 Stadium Atmosphere ──────────────────────────────────── */
+
+body {
+  background-color: #06080f;
+  background-image:
+    /* floodlight top-left */
+    radial-gradient(ellipse 70% 55% at 5% 0%,  rgba(240,180,41,0.07) 0%, transparent 60%),
+    /* floodlight top-right */
+    radial-gradient(ellipse 70% 55% at 95% 0%, rgba(240,180,41,0.07) 0%, transparent 60%),
+    /* pitch glow bottom */
+    radial-gradient(ellipse 120% 50% at 50% 110%, rgba(16,185,129,0.05) 0%, transparent 55%),
+    /* deep navy base */
+    linear-gradient(160deg, #08090f 0%, #06080f 60%, #08090f 100%);
+  background-attachment: fixed;
+}
+
+/* ── Keyframes ───────────────────────────────────────────────────── */
+
+@keyframes float-ball {
+  0%,100% { transform: translateY(0)    rotate(0deg);   }
+  33%      { transform: translateY(-14px) rotate(120deg); }
+  66%      { transform: translateY(-7px)  rotate(240deg); }
+}
+
+@keyframes shimmer-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(200%);  }
+}
+
+@keyframes ticker-scroll {
+  from { transform: translateX(0%);   }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes wc-gold-pulse {
+  0%,100% { opacity: 1;   filter: brightness(1);   }
+  50%     { opacity: 0.8; filter: brightness(1.25); }
+}
+
+@keyframes floodlight-sweep {
+  0%,100% { opacity: 0.06; transform: skewX(-10deg) scaleX(1); }
+  50%     { opacity: 0.10; transform: skewX(10deg)  scaleX(1.05); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes score-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+/* ── Utility classes ─────────────────────────────────────────────── */
+
+.animate-float-ball    { animation: float-ball 8s ease-in-out infinite; }
+.animate-wc-gold-pulse { animation: wc-gold-pulse 2.5s ease-in-out infinite; }
+.animate-ticker        { animation: ticker-scroll 40s linear infinite; }
+.animate-slide-up      { animation: slide-up 0.5s ease-out both; }
+.animate-score-pop     { animation: score-pop 0.3s ease-out; }
+
+/* shimmer overlay — add to a relative element */
+.shimmer-parent { position: relative; overflow: hidden; }
+.shimmer-parent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255,255,255,0.055) 50%,
+    transparent 70%
+  );
+  animation: shimmer-sweep 3.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* WC gold gradient text */
+.wc-gold-text {
+  background: linear-gradient(135deg, #f0b429 0%, #ffd970 50%, #c97c1a 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Championship card */
+.wc-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(240,180,41,0.18);
+  backdrop-filter: blur(12px);
+}
+
+/* Glowing border on hover */
+.wc-card-hover {
+  transition: border-color 0.25s, box-shadow 0.25s;
+}
+.wc-card-hover:hover {
+  border-color: rgba(240,180,41,0.45);
+  box-shadow: 0 0 32px -8px rgba(240,180,41,0.18);
+}
+
+/* Pitch line texture */
+.pitch-lines-bg {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='400'%3E%3Crect x='30' y='30' width='540' height='340' fill='none' stroke='white' stroke-width='1' opacity='0.035'/%3E%3Cline x1='300' y1='30' x2='300' y2='370' stroke='white' stroke-width='1' opacity='0.035'/%3E%3Ccircle cx='300' cy='200' r='60' fill='none' stroke='white' stroke-width='1' opacity='0.035'/%3E%3Ccircle cx='300' cy='200' r='3' fill='white' opacity='0.04'/%3E%3Crect x='30' y='140' width='80' height='120' fill='none' stroke='white' stroke-width='1' opacity='0.025'/%3E%3Crect x='490' y='140' width='80' height='120' fill='none' stroke='white' stroke-width='1' opacity='0.025'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 600px 400px;
+}
+
+/* Floodlight beam (decorative) */
+.floodlight {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 60%;
+  background: linear-gradient(to bottom, rgba(240,180,41,0.4), transparent);
+  filter: blur(24px);
+  animation: floodlight-sweep 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Live pulsing dot */
+.live-dot {
+  display: inline-flex;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e63946;
+  position: relative;
+}
+.live-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #e63946;
+  animation: ping 1.2s cubic-bezier(0,0,0.2,1) infinite;
+}
+@keyframes ping {
+  75%,100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* Ticket-style gradient border */
+.trophy-border {
+  border-image: linear-gradient(135deg, #c97c1a, #ffd970, #f0b429, #c97c1a) 1;
+}
