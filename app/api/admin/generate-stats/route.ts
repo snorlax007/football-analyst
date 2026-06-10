@@ -12,11 +12,6 @@ function auth(req: NextRequest) {
   return req.headers.get("x-admin-secret") === secret;
 }
 
-function getAnthropic() {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-}
-
 interface GeneratedStats {
   home: {
     possession: number; shots: number; shots_on_target: number; xg: number;
@@ -30,15 +25,73 @@ interface GeneratedStats {
   };
 }
 
-async function generateStats(
+// Deterministic seeded PRNG so the same match always gets the same stats
+function seededRand(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+function algorithmicStats(homeScore: number, awayScore: number, matchId: number): GeneratedStats {
+  const r = seededRand(matchId * 17 + homeScore * 100 + awayScore);
+  const diff = homeScore - awayScore;
+  const totalGoals = homeScore + awayScore;
+
+  let homePoss = 50 + diff * 5 + (r() * 10 - 5);
+  homePoss = Math.max(32, Math.min(68, Math.round(homePoss)));
+  const awayPoss = 100 - homePoss;
+
+  const baseShots = 8 + totalGoals * 2;
+  const homeShots = Math.max(homeScore, Math.round(baseShots * (homePoss / 100) * 1.2 + homeScore * 1.5 + r() * 3));
+  const awayShots = Math.max(awayScore, Math.round(baseShots * (awayPoss / 100) * 1.2 + awayScore * 1.5 + r() * 3));
+  const homeSoT = Math.max(homeScore, Math.round(homeShots * (0.35 + r() * 0.2)));
+  const awaySoT = Math.max(awayScore, Math.round(awayShots * (0.35 + r() * 0.2)));
+  const homeXg = +Math.max(homeScore * 0.7, homeScore * (0.8 + r() * 0.4) + r() * 0.5).toFixed(2);
+  const awayXg = +Math.max(awayScore * 0.7, awayScore * (0.8 + r() * 0.4) + r() * 0.5).toFixed(2);
+
+  return {
+    home: {
+      possession:      homePoss,
+      shots:           homeShots,
+      shots_on_target: homeSoT,
+      xg:              homeXg,
+      pass_accuracy:   Math.round(Math.max(72, Math.min(91, 78 + (homePoss - 50) * 0.3 + r() * 6))),
+      passes:          Math.round(350 + homePoss * 4 + r() * 80),
+      corners:         Math.round(4 + homeScore + r() * 4),
+      fouls:           Math.round(9 + r() * 6),
+      yellow_cards:    Math.round(r() * 3),
+      red_cards:       r() > 0.95 ? 1 : 0,
+      offsides:        Math.round(1 + r() * 4),
+      press_intensity: Math.round(Math.max(45, Math.min(80, 55 + (homePoss - 50) * 0.5 + r() * 15))),
+    },
+    away: {
+      possession:      awayPoss,
+      shots:           awayShots,
+      shots_on_target: awaySoT,
+      xg:              awayXg,
+      pass_accuracy:   Math.round(Math.max(72, Math.min(91, 78 + (awayPoss - 50) * 0.3 + r() * 6))),
+      passes:          Math.round(350 + awayPoss * 4 + r() * 80),
+      corners:         Math.round(4 + awayScore + r() * 4),
+      fouls:           Math.round(9 + r() * 6),
+      yellow_cards:    Math.round(r() * 3),
+      red_cards:       r() > 0.95 ? 1 : 0,
+      offsides:        Math.round(1 + r() * 4),
+      press_intensity: Math.round(Math.max(45, Math.min(80, 55 + (awayPoss - 50) * 0.5 + r() * 15))),
+    },
+  };
+}
+
+async function generateStatsWithClaude(
   homeTeam: string, awayTeam: string,
   homeScore: number, awayScore: number,
-  competition: string
+  competition: string,
 ): Promise<GeneratedStats | null> {
-  const anthropic = getAnthropic();
-  if (!anthropic) return null;
-
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
   try {
+    const anthropic = new Anthropic({ apiKey: key });
     const msg = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 400,
@@ -50,9 +103,7 @@ Return ONLY valid JSON, no explanation. Format:
 Make stats consistent with the scoreline. Possession must sum to 100.`,
       }],
     });
-
     const raw = msg.content[0].type === "text" ? msg.content[0].text.trim() : "";
-    // Extract JSON from the response
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     return JSON.parse(jsonMatch[0]) as GeneratedStats;
@@ -62,18 +113,14 @@ Make stats consistent with the scoreline. Possession must sum to 100.`,
 }
 
 // POST /api/admin/generate-stats
-// Generates Claude-powered stats for all finished matches that have no stats yet
+// Uses Claude when ANTHROPIC_API_KEY is set, algorithmic fallback otherwise.
 export async function POST(req: NextRequest) {
   if (!auth(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
-  }
-
   const body = (await req.json().catch(() => ({}))) as { matchId?: number; days?: number };
   const days = body.days ?? 7;
+  const hasClaudeKey = !!process.env.ANTHROPIC_API_KEY;
 
-  // Find finished matches with scores but no stats
   let matchesQuery;
   if (body.matchId) {
     matchesQuery = sql`
@@ -104,19 +151,22 @@ export async function POST(req: NextRequest) {
   }
 
   const matches = await matchesQuery;
-
   const processed: string[] = [];
-  const failed:    string[] = [];
+  const failed: string[] = [];
 
   for (const m of matches) {
     const comp = (m.competition ?? m.league ?? "International") as string;
-    const stats = await generateStats(
-      m.home_name as string, m.away_name as string,
-      m.home_score as number, m.away_score as number,
-      comp
-    );
+    const homeScore = m.home_score as number;
+    const awayScore = m.away_score as number;
+    const matchId = m.id as number;
 
-    if (!stats) { failed.push(`${m.id}`); continue; }
+    let stats: GeneratedStats | null = null;
+    if (hasClaudeKey) {
+      stats = await generateStatsWithClaude(m.home_name as string, m.away_name as string, homeScore, awayScore, comp);
+    }
+    if (!stats) {
+      stats = algorithmicStats(homeScore, awayScore, matchId);
+    }
 
     try {
       await sql`
@@ -125,7 +175,7 @@ export async function POST(req: NextRequest) {
           pass_accuracy, passes, corners, fouls, yellow_cards, red_cards,
           offsides, press_intensity
         ) VALUES (
-          ${m.id as number}, ${m.home_team_id as number},
+          ${matchId}, ${m.home_team_id as number},
           ${stats.home.possession}, ${stats.home.shots}, ${stats.home.shots_on_target},
           ${stats.home.xg}, ${stats.home.pass_accuracy}, ${stats.home.passes},
           ${stats.home.corners}, ${stats.home.fouls}, ${stats.home.yellow_cards},
@@ -139,7 +189,7 @@ export async function POST(req: NextRequest) {
           pass_accuracy, passes, corners, fouls, yellow_cards, red_cards,
           offsides, press_intensity
         ) VALUES (
-          ${m.id as number}, ${m.away_team_id as number},
+          ${matchId}, ${m.away_team_id as number},
           ${stats.away.possession}, ${stats.away.shots}, ${stats.away.shots_on_target},
           ${stats.away.xg}, ${stats.away.pass_accuracy}, ${stats.away.passes},
           ${stats.away.corners}, ${stats.away.fouls}, ${stats.away.yellow_cards},
@@ -147,19 +197,19 @@ export async function POST(req: NextRequest) {
         )
         ON CONFLICT (match_id, team_id) DO NOTHING
       `;
-      processed.push(`${m.home_name} vs ${m.away_name} (${m.id})`);
+      processed.push(`${m.home_name} vs ${m.away_name} (${matchId})`);
     } catch (e) {
-      failed.push(`${m.id}: ${(e as Error).message.slice(0, 40)}`);
+      failed.push(`${matchId}: ${(e as Error).message.slice(0, 40)}`);
     }
 
-    // Small delay to avoid Claude rate limits
-    await new Promise((r) => setTimeout(r, 500));
+    if (hasClaudeKey) await new Promise((r) => setTimeout(r, 500));
   }
 
   return NextResponse.json({
     ok:        true,
     processed: processed.length,
     failed:    failed.length,
+    method:    hasClaudeKey ? "claude" : "algorithmic",
     matches:   processed,
     errors:    failed,
   });
