@@ -1,5 +1,49 @@
 @AGENTS.md
 
+---
+
+# Governance — Read First
+
+Before writing any code or editing any file, load these three layers in order:
+
+## 1. Rules (`rules.md`)
+11 absolute project rules — security, simplicity, surgical changes, goal-driven execution, DB patterns, SDK lazy init, AI graceful degradation, SSE constraints, WC2026 design system.
+→ **Read [`rules.md`](rules.md) before every task.**
+
+## 2. DOX AGENTS.md Chain
+Walk from root to every file you will touch. Read every AGENTS.md along the route:
+
+| File | Governs |
+|------|---------|
+| [`AGENTS.md`](AGENTS.md) | Entire repo — security, stack, env state, migrations |
+| [`lib/AGENTS.md`](lib/AGENTS.md) | `db.ts`, `auth.ts`, `push.ts`, `stripe.ts`, rate limiter |
+| [`components/AGENTS.md`](components/AGENTS.md) | Component inventory, design system constraints |
+| [`app/AGENTS.md`](app/AGENTS.md) | All pages, route map, data flow |
+| [`app/api/AGENTS.md`](app/api/AGENTS.md) | All API handlers, SSE/cron/v1 contracts |
+| [`app/api/admin/AGENTS.md`](app/api/admin/AGENTS.md) | Admin auth pattern, route inventory |
+| [`app/api/auth/AGENTS.md`](app/api/auth/AGENTS.md) | Session contract, password rules |
+| [`app/api/cron/AGENTS.md`](app/api/cron/AGENTS.md) | Cron schedule, football-data.org rate limits |
+| [`app/api/live/AGENTS.md`](app/api/live/AGENTS.md) | SSE headers, event protocol, poll interval |
+| [`app/api/analysis/AGENTS.md`](app/api/analysis/AGENTS.md) | Quota flow, 24 h cache, Anthropic lazy init |
+
+Closer doc controls local detail. No child doc may weaken a root rule.
+
+## 3. Skills
+- **`/grill-me`** — When the user says "grill me", interview them one question at a time, provide a recommended answer for each, explore the codebase instead of asking when the answer is findable there.
+
+## Project vitals
+
+| Key | Value |
+|-----|-------|
+| Production | https://football-analyst-beryl.vercel.app |
+| Repo | https://github.com/snorlax007/football-analyst |
+| Stack | Next.js 16 App Router · TypeScript 5 · Tailwind v4 · Neon PostgreSQL · Vercel Hobby |
+| `ANTHROPIC_API_KEY` | ❌ Not set — AI routes use algorithmic/template fallbacks |
+| `FOOTBALL_DATA_API_KEY` | ❌ Not set — cron sync returns 503 gracefully |
+| Vercel limits | 60 s max function duration · daily crons only |
+
+---
+
 # Football AI Analyst — Wiki Schema
 
 This is the schema for the LLM-maintained build wiki inside this Obsidian vault.
@@ -170,9 +214,8 @@ Actions: `ingest`, `complete`, `start`, `blocked`, `decision`, `deploy`, `query`
 
 - **Neon DB:** `postgresql://neondb_owner:...@ep-divine-frog-aq1vnbfq-pooler...`
   - Tables: `phases`, `tasks` (with `status` column), `logs`
-- **Vercel:** https://testproject-omega-seven.vercel.app
-- **Progress tracker:** https://testproject-omega-seven.vercel.app (Flask + Neon)
-- **Vercel project:** `ayanghoshoneconvergens-projects/test_project`
+- **Vercel:** https://football-analyst-beryl.vercel.app
+- **Vercel project:** `ayanghoshoneconvergens-projects/football-analyst`
 - **API-Football:** needed for Phase 1.3
 - **Claude API:** needed for Phase 1.4 (model: `claude-sonnet-4-6`)
 
